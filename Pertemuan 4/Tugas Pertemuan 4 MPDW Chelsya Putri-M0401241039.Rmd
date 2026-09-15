@@ -1,0 +1,490 @@
+---
+title: "Tugas Individu Pertemuan 4 MPDW"
+author: "Chelsya Putri Ashari-M0401241039"
+date: "2026-09-15"
+output:
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    toc_depth: 3
+    number_sections: false
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+#install.packages("rmdformats")
+```
+
+
+# LATIHAN PERTEMUAN 4 - PEMBANGKITAN PROSES MA(2), AR(2), DAN ARMA(2,2)
+
+```{r}
+#install.packages("TSA")   
+library(TSA)
+
+set.seed(1234)
+n  <- 300
+wn <- rnorm(n)          # white noise sebagai basis pembangkitan semua proses
+
+par(mfrow = c(1, 1))
+ts.plot(wn)
+acf(wn, xlim = c(1, 20))
+```
+
+# 1. PROSES MA(2)  ->  theta1 = 0.4 , theta2 = 0.6
+
+Proses MA(2) dapat dituliskan sebagai berikut:
+
+$$
+Y_t = e_t + \theta_1 e_{t-1} + \theta_2 e_{t-2}
+$$
+
+## Pembangkitan Data
+
+```{r}
+theta1 <- 0.4
+theta2 <- 0.6
+```
+
+### Cara Manual
+
+```{r}
+## Model  : Yt = et + theta1*e(t-1) + theta2*e(t-2)
+set.seed(1234)
+ma2 <- wn[1:2]                      
+for (i in 3:n) {
+  ma2[i] <- wn[i] + theta1 * wn[i - 1] + theta2 * wn[i - 2]
+}
+ma2
+```
+
+### Menggunakan arima.sim()
+
+```{r}
+set.seed(1234)
+ma2.sim <- arima.sim(list(order = c(0, 0, 2), ma = c(theta1, theta2)), n = n)
+ma2.sim
+```
+
+## Plot Time Series, ACF, PACF, EACF 
+
+### Plot Time Series
+```{r}
+par(mfrow = c(1, 2))
+ts.plot(ma2);     ts.plot(ma2.sim)
+par(mfrow = c(1, 1))
+
+```
+
+Berdasarkan plot time series tersebut, terlihat bahwa data MA(2) yang
+dibangkitkan berfluktuasi di sekitar nilai tengah tertentu sehingga
+cenderung **stasioner dalam rataan**.
+
+### Plot ACF
+
+```{r}
+par(mfrow = c(1, 2))
+acf(ma2,     lag.max = 20)
+acf(ma2.sim, lag.max = 20)
+par(mfrow = c(1, 1))
+```
+
+Berdasarkan plot ACF tersebut, terlihat bahwa plot ACF **cuts off**
+setelah lag ke-2, sesuai dengan teori proses MA(2).
+
+### Plot PACF
+
+```{r}
+par(mfrow = c(1, 2))
+pacf(ma2)
+pacf(ma2.sim)
+par(mfrow = c(1, 1))
+```
+Berdasarkan plot PACF tersebut, terlihat bahwa plot PACF cenderung
+**tails off** membentuk pola gelombang sinus.
+
+### Plot EACF
+
+```{r}
+TSA::eacf(ma2)
+TSA::eacf(ma2.sim)
+```
+
+Berdasarkan pola segitiga nol pada plot EACF, terlihat bahwa segitiga
+nol berada pada ordo AR(0) dan ordo MA(2), sesuai dengan model yang
+dibangkitkan.
+
+## Scatterplot antar lag: Yt vs Yt-1, Yt vs Yt-2, Yt vs Yt-3
+
+```{r}
+# Yt vs Yt-1
+yt_ma2    <- ma2[-1]
+yt_1_ma2  <- ma2[-n]
+plot(y = yt_ma2, x = yt_1_ma2,
+     main = "Yt vs Yt-1 (MA(2))", xlab = "Yt-1", ylab = "Yt")
+cor(yt_ma2, yt_1_ma2)
+```
+
+```{r}
+# Yt vs Yt-2
+yt_ma2_2   <- ma2[-c(1, 2)]
+yt_2_ma2   <- ma2[-c(n - 1, n)]
+plot(y = yt_ma2_2, x = yt_2_ma2,
+     main = "Yt vs Yt-2 (MA(2))", xlab = "Yt-2", ylab = "Yt")
+cor(yt_ma2_2, yt_2_ma2)
+```
+
+```{r}
+# Yt vs Yt-3
+yt_ma2_3   <- ma2[-c(1, 2, 3)]
+yt_3_ma2   <- ma2[-c(n - 2, n - 1, n)]
+plot(y = yt_ma2_3, x = yt_3_ma2,
+     main = "Yt vs Yt-3 (MA(2))", xlab = "Yt-3", ylab = "Yt")
+cor(yt_ma2_3, yt_3_ma2)
+```
+
+Terlihat bahwa hubungan antara $Y_t$ dengan $Y_{t-1}$ dan $Y_{t-2}$
+masih cukup kuat, sedangkan hubungan antara $Y_t$ dengan $Y_{t-3}$
+cenderung tidak ada, sesuai dengan sifat MA(2) yang hanya memiliki
+autokorelasi signifikan hingga lag ke-2.
+
+## Autokorelasi: hasil bangkitan vs teoritis
+Untuk model $Y_t = e_t + \theta_1 e_{t-1} + \theta_2 e_{t-2}$, autokorelasi
+teoritisnya adalah:
+
+$$
+\rho_1 = \frac{\theta_1 + \theta_1\theta_2}{1+\theta_1^2+\theta_2^2}
+\qquad
+\rho_2 = \frac{\theta_2}{1+\theta_1^2+\theta_2^2}
+\qquad
+\rho_k = 0 \; ,\; k \ge 3
+$$
+ 
+```{r}
+denom_ma2 <- 1 + theta1^2 + theta2^2
+rho1_ma2_teori <- (theta1 + theta1 * theta2) / denom_ma2
+rho2_ma2_teori <- theta2 / denom_ma2
+rho3_ma2_teori <- 0
+
+cat("=== Autokorelasi MA(2) ===\n")
+cat("Empiris  rho1 :", cor(yt_ma2, yt_1_ma2),     "\n")
+cat("Teoritis rho1 :", rho1_ma2_teori, "\n\n")
+cat("Empiris  rho2 :", cor(yt_ma2_2, yt_2_ma2),   "\n")
+cat("Teoritis rho2 :", rho2_ma2_teori, "\n\n")
+cat("Empiris  rho3 :", cor(yt_ma2_3, yt_3_ma2),   "\n")
+cat("Teoritis rho3 :", rho3_ma2_teori, "\n\n")
+
+ARMAacf(ma = c(theta1, theta2), lag.max = 5)
+```
+
+
+Nilai autokorelasi hasil bangkitan mendekati nilai teoritis, khususnya
+untuk lag 1 dan 2, sementara autokorelasi lag 3 mendekati nol.
+
+# 2. PROSES AR(2)  ->  phi1 = 0.5 , phi2 = 0.2
+
+Proses AR(2) dapat dituliskan sebagai berikut:
+
+$$
+Y_t = \phi_1 Y_{t-1} + \phi_2 Y_{t-2} + e_t
+$$
+
+## Pembangkitan Data
+
+```{r}
+phi1 <- 0.5
+phi2 <- 0.2
+```
+
+### Cara Manual
+
+Model  : Yt = phi1*Y(t-1) + phi2*Y(t-2) + et
+
+```{r}
+set.seed(1234)
+ar2 <- wn[1:2]                       # dua nilai awal
+for (i in 3:n) {
+  ar2[i] <- phi1 * ar2[i - 1] + phi2 * ar2[i - 2] + wn[i]
+}
+ar2
+```
+
+### Menggunakan arima.sim()
+
+```{r}
+set.seed(1234)
+ar2.sim <- arima.sim(list(order = c(2, 0, 0), ar = c(phi1, phi2)), n = n)
+ar2.sim
+```
+## Plot Time Series, ACF, PACF, EACF
+
+### Plot Time Series
+
+```{r}
+par(mfrow = c(1, 2))
+ts.plot(ar2);     ts.plot(ar2.sim)
+par(mfrow = c(1, 1))
+
+```
+
+ Berdasarkan plot time series tersebut, terlihat bahwa data cenderung
+**stasioner dalam rataan** karena $\phi_1+\phi_2 = 0.7 < 1$ (akar
+karakteristik berada di luar lingkaran satuan).
+
+### Plot ACF
+ 
+```{r}
+par(mfrow = c(1, 2))
+acf(ar2)
+acf(ar2.sim)
+par(mfrow = c(1, 1))
+```
+ 
+Berdasarkan plot ACF tersebut, terlihat bahwa plot ACF cenderung
+**tails off** membentuk pola grafik menurun/sinusoidal.
+
+### Plot PACF
+
+```{r}
+par(mfrow = c(1, 2))
+pacf(ar2)
+pacf(ar2.sim)
+par(mfrow = c(1, 1))
+```
+ 
+Berdasarkan plot PACF tersebut, terlihat bahwa plot PACF **cuts off**
+setelah lag ke-2, sesuai dengan teori proses AR(2).
+
+### Plot EACF
+ 
+```{r}
+TSA::eacf(ar2)
+TSA::eacf(ar2.sim)
+```
+Berdasarkan pola segitiga nol pada plot EACF, terlihat bahwa segitiga
+nol berada pada ordo AR(2) dan ordo MA(0), sesuai dengan model yang
+dibangkitkan.
+ 
+## Scatterplot antar lag: Yt vs Yt-1, Yt vs Yt-2, Yt vs Yt-3
+
+```{r}
+# Yt vs Yt-1
+yt_ar2    <- ar2[-1]
+yt_1_ar2  <- ar2[-n]
+plot(y = yt_ar2, x = yt_1_ar2,
+     main = "Yt vs Yt-1 (AR(2))", xlab = "Yt-1", ylab = "Yt")
+cor(yt_ar2, yt_1_ar2)
+```
+```{r}
+# Yt vs Yt-2
+yt_ar2_2   <- ar2[-c(1, 2)]
+yt_2_ar2   <- ar2[-c(n - 1, n)]
+plot(y = yt_ar2_2, x = yt_2_ar2,
+     main = "Yt vs Yt-2 (AR(2))", xlab = "Yt-2", ylab = "Yt")
+cor(yt_ar2_2, yt_2_ar2)
+```
+```{r}
+# Yt vs Yt-3
+yt_ar2_3   <- ar2[-c(1, 2, 3)]
+yt_3_ar2   <- ar2[-c(n - 2, n - 1, n)]
+plot(y = yt_ar2_3, x = yt_3_ar2,
+     main = "Yt vs Yt-3 (AR(2))", xlab = "Yt-3", ylab = "Yt")
+cor(yt_ar2_3, yt_3_ar2)
+```
+
+Terlihat bahwa terdapat hubungan positif antara $Y_t$ dengan
+$Y_{t-1}$, $Y_{t-2}$, maupun $Y_{t-3}$, namun kekuatan hubungannya
+semakin melemah seiring bertambahnya lag, sesuai dengan sifat proses
+AR yang autokorelasinya meluruh (tails off) secara bertahap.
+
+## Autokorelasi: hasil bangkitan vs teoritis
+
+Untuk model $Y_t = \phi_1 Y_{t-1} + \phi_2 Y_{t-2} + e_t$, autokorelasi
+teoritisnya diperoleh dari persamaan Yule-Walker:
+
+$$
+\rho_1 = \frac{\phi_1}{1-\phi_2}
+\qquad
+\rho_2 = \phi_2 + \frac{\phi_1^2}{1-\phi_2}
+\qquad
+\rho_k = \phi_1\rho_{k-1}+\phi_2\rho_{k-2} \; ,\; k \ge 3
+$$
+
+```{r}
+rho1_ar2_teori <- phi1 / (1 - phi2)
+rho2_ar2_teori <- phi2 + (phi1^2) / (1 - phi2)
+rho3_ar2_teori <- phi1 * rho2_ar2_teori + phi2 * rho1_ar2_teori
+
+cat("=== Autokorelasi AR(2) ===\n")
+cat("Empiris  rho1 :", cor(yt_ar2, yt_1_ar2),     "\n")
+cat("Teoritis rho1 :", rho1_ar2_teori, "\n\n")
+cat("Empiris  rho2 :", cor(yt_ar2_2, yt_2_ar2),   "\n")
+cat("Teoritis rho2 :", rho2_ar2_teori, "\n\n")
+cat("Empiris  rho3 :", cor(yt_ar2_3, yt_3_ar2),   "\n")
+cat("Teoritis rho3 :", rho3_ar2_teori, "\n\n")
+
+ARMAacf(ar = c(phi1, phi2), lag.max = 5)
+```
+
+# 3. PROSES ARMA(2,2)  ->  phi1 = 0.5, phi2 = 0.2, theta1 = 0.4, theta2 = 0.6
+
+Proses ARMA(2,2) dapat dituliskan sebagai berikut:
+
+$$
+Y_t = \phi_1 Y_{t-1} + \phi_2 Y_{t-2} + e_t + \theta_1 e_{t-1} + \theta_2 e_{t-2}
+$$
+
+## Pembangkitan Data
+
+### Cara Manual
+
+Model  : Yt = phi1*Y(t-1) + phi2*Y(t-2) + et + theta1*e(t-1) + theta2*e(t-2)
+
+```{r}
+set.seed(1234)
+arma22 <- wn[1:2]                    # dua nilai awal
+for (i in 3:n) {
+  arma22[i] <- phi1 * arma22[i - 1] + phi2 * arma22[i - 2] +
+               theta1 * wn[i - 1]    + theta2 * wn[i - 2]  + wn[i]
+}
+arma22
+```
+
+### Menggunakan arima.sim()
+
+```{r}
+set.seed(1234)
+arma22.sim <- arima.sim(list(order = c(2, 0, 2),
+                              ar = c(phi1, phi2),
+                              ma = c(theta1, theta2)), n = n)
+arma22.sim
+
+```
+
+## Plot Time Series, ACF, PACF, EACF
+
+### Plot Time Series
+
+```{r}
+par(mfrow = c(1, 2))
+ts.plot(arma22, main = "ARMA(2,2) Manual")
+ts.plot(arma22.sim, main = "ARMA(2,2) arima.sim")
+par(mfrow = c(1, 1))
+```
+Berdasarkan plot time series tersebut, terlihat bahwa model ARMA(2,2)
+cenderung **stasioner dalam rataan**.
+
+### Plot ACF
+
+```{r}
+par(mfrow = c(1, 2))
+acf(arma22, main = "ACF ARMA(2,2) Manual")
+acf(arma22.sim, main = "ACF ARMA(2,2) arima.sim")
+par(mfrow = c(1, 1))
+```
+Berdasarkan plot ACF tersebut, terlihat bahwa model ARMA(2,2) hasil
+simulasi memiliki plot ACF yang **tails off**, sesuai dengan teori
+yang ada.
+
+### Plot PACF
+
+```{r}
+par(mfrow = c(1, 2))
+pacf(arma22, main = "PACF ARMA(2,2) Manual")
+pacf(arma22.sim, main = "PACF ARMA(2,2) arima.sim")
+par(mfrow = c(1, 1))
+```
+
+### Plot EACF
+
+```{r}
+TSA::eacf(arma22)
+TSA::eacf(arma22.sim)
+```
+Berdasarkan pola segitiga nol pada plot EACF, terlihat bahwa segitiga
+nol berada pada ordo AR(2) dan ordo MA(2), sesuai dengan model yang
+dibangkitkan.
+
+## Scatterplot Antar Lag
+
+### Korelasi antara $Y_t$ dengan $Y_{t-1}$
+
+```{r}
+yt_arma22   <- arma22[-1]
+yt_1_arma22 <- arma22[-n]
+plot(y = yt_arma22, x = yt_1_arma22, xlab = "Yt-1", ylab = "Yt",
+     main = "Yt vs Yt-1 (ARMA(2,2))")
+```
+```{r}
+cor(yt_arma22, yt_1_arma22)
+```
+
+### Korelasi antara $Y_t$ dengan $Y_{t-2}$
+
+```{r}
+yt_arma22_2 <- arma22[-c(1, 2)]
+yt_2_arma22 <- arma22[-c(n - 1, n)]
+plot(y = yt_arma22_2, x = yt_2_arma22, xlab = "Yt-2", ylab = "Yt",
+     main = "Yt vs Yt-2 (ARMA(2,2))")
+```
+```{r}
+cor(yt_arma22_2, yt_2_arma22)
+```
+
+### Korelasi antara $Y_t$ dengan $Y_{t-3}$
+
+```{r}
+yt_arma22_3 <- arma22[-c(1, 2, 3)]
+yt_3_arma22 <- arma22[-c(n - 2, n - 1, n)]
+plot(y = yt_arma22_3, x = yt_3_arma22, xlab = "Yt-3", ylab = "Yt",
+     main = "Yt vs Yt-3 (ARMA(2,2))")
+```
+```{r}
+cor(yt_arma22_3, yt_3_arma22)
+```
+Berdasarkan scatterplot tersebut, terlihat bahwa terdapat hubungan
+antara $Y_t$ dengan lag-lag sebelumnya, dengan kekuatan hubungan yang
+meluruh mengikuti pola komponen AR-nya. Hal ini sesuai dengan teori
+yang ada.
+
+## Autokorelasi: Data Bangkitan vs Teoritis
+
+Untuk model ARMA(2,2), penurunan rumus tertutup $\rho_k$ melibatkan
+penyelesaian sistem persamaan Yule-Walker yang diperluas dengan
+komponen MA sehingga cukup panjang. Nilai teoritisnya dihitung secara
+praktis menggunakan fungsi bawaan `ARMAacf()`, yang menghitung ACF
+teoritis murni dari parameter model (bukan dari data bangkitan).
+
+```{r}
+rho_teori_arma22 <- ARMAacf(ar = c(phi1, phi2),
+                             ma = c(theta1, theta2),
+                             lag.max = 3)
+rho_teori_arma22
+```
+```{r}
+cat("Empiris  rho1 :", cor(yt_arma22, yt_1_arma22),   "| Teoritis rho1 :", rho_teori_arma22[1], "\n")
+cat("Empiris  rho2 :", cor(yt_arma22_2, yt_2_arma22), "| Teoritis rho2 :", rho_teori_arma22[2], "\n")
+cat("Empiris  rho3 :", cor(yt_arma22_3, yt_3_arma22), "| Teoritis rho3 :", rho_teori_arma22[3], "\n")
+```
+Nilai autokorelasi hasil bangkitan mendekati nilai teoritis dari
+`ARMAacf()`, menunjukkan bahwa proses simulasi ARMA(2,2) sudah sesuai
+dengan model yang ditetapkan.
+
+# Kesimpulan
+
+| Proses     | Parameter                                   | Pola ACF   | Pola PACF  | Kestasioneran |
+|------------|----------------------------------------------|------------|------------|---------------|
+| MA(2)      | $\theta_1=0.4,\ \theta_2=0.6$                | Cuts off lag 2 | Tails off | Stasioner |
+| AR(2)      | $\phi_1=0.5,\ \phi_2=0.2$                    | Tails off  | Cuts off lag 2 | Stasioner |
+| ARMA(2,2)  | $\phi_1=0.5,\phi_2=0.2,\theta_1=0.4,\theta_2=0.6$ | Tails off | Tails off | Stasioner |
+
+Ketiga proses yang dibangkitkan (MA(2), AR(2), ARMA(2,2)) menunjukkan
+pola ACF/PACF yang sesuai dengan teori masing-masing model, dan nilai
+autokorelasi hasil bangkitan (baik manual maupun `arima.sim()`)
+mendekati nilai autokorelasi teoritisnya.
+
+
